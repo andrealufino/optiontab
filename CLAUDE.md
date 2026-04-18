@@ -63,11 +63,12 @@ Full routing rationale: `docs/260418-01-event-routing-v1.md`.
 ### Window enumeration
 - `AXUIElementCreateApplication(pid)` → `kAXWindowsAttribute`
 - Filter: `kAXStandardWindowSubrole` only
-- Sort: focused window first, then by title
-- Stable ID: pointer address of `AXUIElementRef`
+- Focus match: `CFEqual` against `kAXFocusedWindowAttribute` (pointer addresses of `AXUIElement` are not stable across attribute reads)
+- Sort: focused window first, then preserve AX traversal order
+- Stable ID: pointer address of `AXUIElementRef` (used only within a single enumeration pass)
 
 ### Liquid Glass
-- One container, one `.glassEffect(in: RoundedRectangle(cornerRadius: 14))`
+- One container, one `.glassEffect(in: RoundedRectangle(cornerRadius: 22))`
 - No `GlassEffectContainer` needed (single surface, no sibling morphing)
 - `NSPanel.hasShadow = false` — shadow is owned by the SwiftUI shape, not the window system
 - `NSPanel.isOpaque = false`, `backgroundColor = .clear`

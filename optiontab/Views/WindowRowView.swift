@@ -91,7 +91,7 @@ struct WindowRowView: View {
     @ViewBuilder
     private var selectionBackground: some View {
         if isSelected {
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: 16)
                 .fill(.white.opacity(0.15))
                 .padding(.horizontal, 6)
         }
