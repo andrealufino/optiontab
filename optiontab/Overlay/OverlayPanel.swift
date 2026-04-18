@@ -48,21 +48,30 @@ final class OverlayPanel: NSPanel {
     // MARK: Private Methods
 
     /// Applies panel appearance settings.
+    ///
+    /// Shadow is drawn by SwiftUI on the rounded shape itself; the window-level
+    /// shadow is disabled because it would otherwise render a rectangular shadow
+    /// around the full content frame, bleeding past the rounded glass corners.
     private func configure() {
         level = .floating
         isOpaque = false
         backgroundColor = .clear
-        hasShadow = true
+        hasShadow = false
         isMovableByWindowBackground = false
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         hidesOnDeactivate = false
     }
 
     /// Resizes the panel to fit its hosting view's intrinsic content size.
+    ///
+    /// The content size includes the SwiftUI view's outer padding (reserved
+    /// for shadow bleed), so the panel frame must match exactly to avoid
+    /// clipping the shadow at the edges.
     func sizeToFit() {
         guard let contentView else { return }
         let size = contentView.fittingSize
-        let clampedHeight = min(size.height, (NSScreen.main?.visibleFrame.height ?? 800) - 80)
-        setContentSize(NSSize(width: 420, height: max(clampedHeight, 60)))
+        let maxHeight = (NSScreen.main?.visibleFrame.height ?? 800) - 80
+        let clampedHeight = min(size.height, maxHeight)
+        setContentSize(NSSize(width: size.width, height: max(clampedHeight, 80)))
     }
 }
