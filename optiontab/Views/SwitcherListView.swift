@@ -68,8 +68,7 @@ struct SwitcherListView: View {
             }
         }
         .frame(width: 420)
-        .glassEffect()
-        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .glassEffect(in: RoundedRectangle(cornerRadius: 14))
     }
 
 
