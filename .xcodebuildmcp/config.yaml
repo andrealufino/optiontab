@@ -1,0 +1,9 @@
+schemaVersion: 1
+enabledWorkflows:
+  - macos
+  - xcode-ide
+debug: true
+sentryDisabled: false
+sessionDefaults:
+  projectPath: optiontab.xcodeproj
+  scheme: optiontab
