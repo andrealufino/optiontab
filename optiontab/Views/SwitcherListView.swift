@@ -69,8 +69,6 @@ struct SwitcherListView: View {
         }
         .frame(width: 420)
         .glassEffect(in: RoundedRectangle(cornerRadius: 14))
-        .shadow(color: .black.opacity(0.35), radius: 18, x: 0, y: 8)
-        .padding(24)
     }
 
 
