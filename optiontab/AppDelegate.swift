@@ -101,6 +101,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return }
             handleHotKeyPressed()
         }
+        hotKeyService.onShiftHotKeyPressed = { [weak self] in
+            guard let self else { return }
+            handleShiftHotKeyPressed()
+        }
         hotKeyService.register()
     }
 
@@ -123,6 +127,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task {
             await overlayController.show(for: frontmost)
         }
+    }
+
+    /// Handles `Option+Shift+Tab` by cycling the overlay selection backward.
+    ///
+    /// When the overlay is not yet visible the press is ignored — backward
+    /// cycling only makes sense once the user has opened the switcher with
+    /// `Option+Tab`.
+    private func handleShiftHotKeyPressed() {
+        overlayController.cycleBackwardIfVisible()
     }
 
     /// Updates the menu bar to reflect current service state.

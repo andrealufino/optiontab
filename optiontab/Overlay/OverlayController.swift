@@ -114,6 +114,15 @@ final class OverlayController {
         selectedIndex = (selectedIndex - 1 + windows.count) % windows.count
     }
 
+    /// Moves the selection backward only if the overlay is currently visible.
+    ///
+    /// Used by the global `Option+Shift+Tab` Carbon hotkey, which can fire
+    /// independently of the overlay state.
+    func cycleBackwardIfVisible() {
+        guard isVisible else { return }
+        cycleBackward()
+    }
+
     /// Updates the selected index to match a hover event from a row view.
     ///
     /// - Parameter index: The row index the cursor is hovering over.

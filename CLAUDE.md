@@ -48,10 +48,15 @@ nonisolated(unsafe) private var hotKeyRef: EventHotKeyRef?
 nonisolated(unsafe) private var eventHandlerRef: EventHandlerRef?
 ```
 
+Two hotkeys are registered: `Option+Tab` (forward) and `Option+Shift+Tab` (backward).
+Carbon swallows the keyDown event, so NSEvent monitors never see `Option+Tab` —
+**all cycling is driven by Carbon, not by NSEvent keyDown**.
+Full routing rationale: `docs/260418-01-event-routing-v1.md`.
+
 ### Overlay lifecycle
-1. `HotKeyService` fires `onHotKeyPressed`
+1. `HotKeyService` fires `onHotKeyPressed` / `onShiftHotKeyPressed`
 2. `AppDelegate` reads `NSWorkspace.shared.frontmostApplication`, skips self
-3. `OverlayController.show(for:)` fetches windows, presents panel, starts event monitor
+3. `OverlayController.show(for:)` fetches windows, presents panel, starts event monitor; if already visible, calls `cycleForward()` instead
 4. `Option` key release → `confirm()` → raise selected window, dismiss panel
 5. `Escape` / click outside → `cancel()` → dismiss without raising
 

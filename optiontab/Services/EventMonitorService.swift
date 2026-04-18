@@ -68,7 +68,7 @@ final class EventMonitorService {
             }
         }
 
-        localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .leftMouseDown, .rightMouseDown]) { [weak self] event in
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged, .leftMouseDown, .rightMouseDown]) { [weak self] event in
             Task { @MainActor [weak self] in
                 self?.handleLocalEvent(event)
             }
@@ -96,15 +96,14 @@ final class EventMonitorService {
 
     /// Handles global `flagsChanged` (modifier key state) and `keyDown` events.
     ///
+    /// This is the safety-net path: fires when the panel is not key (e.g. Mission
+    /// Control is active). The primary path is the local monitor.
+    ///
     /// - Parameter event: The `NSEvent` received from the global monitor.
     private func handleGlobalEvent(_ event: NSEvent) {
         switch event.type {
         case .flagsChanged:
-            // Option released
-            if !event.modifierFlags.contains(.option) {
-                print("[Overlay] Option released — confirming")
-                onOptionReleased?()
-            }
+            handleFlagsChanged(event)
         case .keyDown:
             handleKeyDown(event)
         default:
@@ -112,17 +111,29 @@ final class EventMonitorService {
         }
     }
 
-    /// Handles local events (keyboard + mouse) while focus is inside the panel.
+    /// Handles local events (keyboard + mouse) while the panel is key.
     ///
     /// - Parameter event: The `NSEvent` received from the local monitor.
     private func handleLocalEvent(_ event: NSEvent) {
         switch event.type {
+        case .flagsChanged:
+            handleFlagsChanged(event)
         case .keyDown:
             handleKeyDown(event)
         case .leftMouseDown, .rightMouseDown:
             handleMouseDown(event)
         default:
             break
+        }
+    }
+
+    /// Fires `onOptionReleased` when the Option modifier transitions to off.
+    ///
+    /// - Parameter event: A `flagsChanged` `NSEvent`.
+    private func handleFlagsChanged(_ event: NSEvent) {
+        if !event.modifierFlags.contains(.option) {
+            print("[Overlay] Option released — confirming")
+            onOptionReleased?()
         }
     }
 

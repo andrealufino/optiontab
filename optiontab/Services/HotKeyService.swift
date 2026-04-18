@@ -23,17 +23,22 @@ final class HotKeyService {
     /// Called on the main thread each time `Option+Tab` is pressed.
     var onHotKeyPressed: (() -> Void)?
 
+    /// Called on the main thread each time `Option+Shift+Tab` is pressed.
+    var onShiftHotKeyPressed: (() -> Void)?
+
     nonisolated(unsafe) private var hotKeyRef: EventHotKeyRef?
+    nonisolated(unsafe) private var shiftHotKeyRef: EventHotKeyRef?
     nonisolated(unsafe) private var eventHandlerRef: EventHandlerRef?
 
-    // Unique ID for the hotkey registration.
     private let hotKeyID = EventHotKeyID(signature: fourCharCode("OPTB"), id: 1)
+    private let shiftHotKeyID = EventHotKeyID(signature: fourCharCode("OPTB"), id: 2)
 
 
     // MARK: Initialization
 
     deinit {
         if let ref = hotKeyRef { UnregisterEventHotKey(ref) }
+        if let ref = shiftHotKeyRef { UnregisterEventHotKey(ref) }
         if let handler = eventHandlerRef { RemoveEventHandler(handler) }
     }
 
@@ -91,14 +96,36 @@ final class HotKeyService {
         } else {
             print("[HotKey] failed to register hotkey: \(registerStatus)")
         }
+
+        // Option+Shift+Tab — backward cycling. Carbon swallows the keyDown,
+        // so the backward step needs its own dedicated hotkey registration.
+        let shiftRegisterStatus = RegisterEventHotKey(
+            UInt32(kVK_Tab),
+            UInt32(optionKey | shiftKey),
+            shiftHotKeyID,
+            GetApplicationEventTarget(),
+            0,
+            &shiftHotKeyRef
+        )
+
+        if shiftRegisterStatus == noErr {
+            print("[HotKey] Option+Shift+Tab registered")
+        } else {
+            print("[HotKey] failed to register shift hotkey: \(shiftRegisterStatus)")
+        }
     }
 
-    /// Unregisters the hotkey and removes the event handler.
+    /// Unregisters all hotkeys and removes the event handler.
     func unregister() {
         if let ref = hotKeyRef {
             UnregisterEventHotKey(ref)
             hotKeyRef = nil
             print("[HotKey] Option+Tab unregistered")
+        }
+        if let ref = shiftHotKeyRef {
+            UnregisterEventHotKey(ref)
+            shiftHotKeyRef = nil
+            print("[HotKey] Option+Shift+Tab unregistered")
         }
         if let handler = eventHandlerRef {
             RemoveEventHandler(handler)
@@ -109,7 +136,7 @@ final class HotKeyService {
 
     // MARK: Private Methods
 
-    /// Fires `onHotKeyPressed` after verifying the event matches our registered ID.
+    /// Routes Carbon hotkey events to the matching callback based on the registered ID.
     ///
     /// - Parameter event: The Carbon `EventRef` received from the event handler.
     private func handleHotKeyEvent(_ event: EventRef?) {
@@ -124,9 +151,16 @@ final class HotKeyService {
             &receivedID
         )
 
-        guard receivedID.id == hotKeyID.id else { return }
-        print("[HotKey] Option+Tab fired")
-        onHotKeyPressed?()
+        switch receivedID.id {
+        case hotKeyID.id:
+            print("[HotKey] Option+Tab fired")
+            onHotKeyPressed?()
+        case shiftHotKeyID.id:
+            print("[HotKey] Option+Shift+Tab fired")
+            onShiftHotKeyPressed?()
+        default:
+            break
+        }
     }
 }
 
