@@ -52,9 +52,7 @@ struct WindowListService {
 
             let isFocused: Bool = {
                 guard let focused = focusedWindow else { return false }
-                var focusedPtr: UInt = 0
-                withUnsafeBytes(of: focused) { focusedPtr = $0.load(as: UInt.self) }
-                return windowID == Int(bitPattern: focusedPtr)
+                return CFEqual(axWindow, focused)
             }()
 
             result.append(AppWindow(
