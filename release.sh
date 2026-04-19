@@ -101,9 +101,10 @@ APP_PATH="$(find "$EXPORT_DIR" -maxdepth 1 -name "*.app" -type d | head -n 1)"
 ok "Exported: $(basename "$APP_PATH")"
 
 # Sanity: confirm Developer ID signature + hardened runtime
-codesign --verify --deep --strict --verbose=2 "$APP_PATH" 2>&1 | grep -q "valid on disk" \
+codesign --verify --deep --strict "$APP_PATH" >/dev/null 2>&1 \
   || die "Signature verification failed"
-codesign -dv "$APP_PATH" 2>&1 | grep -q "flags=.*runtime" \
+CODESIGN_INFO="$(codesign -dv "$APP_PATH" 2>&1)"
+echo "$CODESIGN_INFO" | grep -q "flags=.*runtime" \
   || die "Hardened runtime not enabled on exported app"
 ok "Signature + hardened runtime verified"
 
