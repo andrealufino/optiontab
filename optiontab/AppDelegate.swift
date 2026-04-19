@@ -27,8 +27,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let overlayController = OverlayController()
     private let menuBarController = MenuBarController()
 
-    /// Window hosting the onboarding SwiftUI view.
-    private var onboardingWindow: NSWindow?
+    /// Panel hosting the onboarding SwiftUI view.
+    private var onboardingPanel: OnboardingPanel?
 
 
     // MARK: NSApplicationDelegate
@@ -149,27 +149,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: Private — Onboarding
 
-    /// Shows the onboarding window, creating it if needed.
+    /// Shows the onboarding panel, creating it if needed.
+    ///
+    /// Activates the app briefly so the panel becomes key even though
+    /// OptionTab runs as `.accessory` — activation policy stays `.accessory`
+    /// throughout, so no Dock icon appears.
     private func showOnboarding() {
-        if let existing = onboardingWindow, existing.isVisible {
+        if let existing = onboardingPanel, existing.isVisible {
+            NSApp.activate(ignoringOtherApps: true)
             existing.makeKeyAndOrderFront(nil)
             return
         }
 
         let view = OnboardingView(permissionsService: permissionsService)
-        let window = NSWindow(
+        let panel = OnboardingPanel(
             contentRect: NSRect(x: 0, y: 0, width: 480, height: 360),
-            styleMask: [.titled, .closable, .miniaturizable],
+            styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
-        window.title = "OptionTab — Accessibility Required"
-        window.contentView = NSHostingView(rootView: view)
-        window.isReleasedWhenClosed = false
-        window.center()
-        window.makeKeyAndOrderFront(nil)
+        panel.title = "OptionTab — Accessibility Required"
+        panel.contentView = NSHostingView(rootView: view)
+        panel.isReleasedWhenClosed = false
+        panel.level = .floating
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.hidesOnDeactivate = false
+        panel.center()
 
-        onboardingWindow = window
+        NSApp.activate(ignoringOtherApps: true)
+        panel.makeKeyAndOrderFront(nil)
+
+        onboardingPanel = panel
         print("[Perms] onboarding shown")
     }
 }

@@ -6,4 +6,4 @@ debug: true
 sentryDisabled: false
 sessionDefaults:
   projectPath: optiontab.xcodeproj
-  scheme: optiontab
+  scheme: debug
