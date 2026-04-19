@@ -40,7 +40,7 @@ final class MenuBarController {
     /// Sets up the status item with the default icon.
     func setup() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        item.button?.image = NSImage(systemSymbolName: "rectangle.stack", accessibilityDescription: "OptionTab")
+        item.button?.image = NSImage(systemSymbolName: "arrow.right.to.line", accessibilityDescription: "OptionTab")
         item.button?.image?.isTemplate = true
         statusItem = item
         rebuildMenu()
@@ -60,7 +60,7 @@ final class MenuBarController {
         self.isLaunchAtLoginEnabled = isLaunchAtLoginEnabled
 
         // Update icon to reflect permission state
-        let iconName = isAccessibilityGranted ? "rectangle.stack" : "rectangle.stack.badge.minus"
+        let iconName = isAccessibilityGranted ? "arrow.right.to.line" : "arrow.right.to.line"
         statusItem?.button?.image = NSImage(systemSymbolName: iconName, accessibilityDescription: "OptionTab")
         statusItem?.button?.image?.isTemplate = true
 
