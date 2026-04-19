@@ -143,6 +143,9 @@ final class OverlayController {
         let view = SwitcherListView(controller: self)
         let hosting = NSHostingView(rootView: view)
         hosting.translatesAutoresizingMaskIntoConstraints = false
+        hosting.wantsLayer = true
+        hosting.layer?.backgroundColor = NSColor.clear.cgColor
+        hosting.layer?.isOpaque = false
 
         panel.contentView = hosting
         panel.sizeToFit()
