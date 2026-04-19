@@ -1,25 +1,23 @@
-# OptionTab
+<div align="center">
+  <img src="optiontab/Assets.xcassets/AppIcon.appiconset/icon_256x256.png" width="128" alt="OptionTab icon" />
 
-A native macOS window switcher. Press `Option+Tab` to get a vertical list of all windows of the currently active app and raise the one you want.
+  # OptionTab
 
-<!-- TODO: screenshot -->
+  A native macOS window switcher. Press `Option+Tab` to see all windows of the frontmost app and raise the one you want — without ever leaving the keyboard.
+</div>
 
 ## Features
 
 - `Option+Tab` global hotkey — no Dock interaction, no app switch
-- Lists **all windows** from all Spaces, including minimized ones
+- Lists all windows from all Spaces, including minimized ones
 - Minimized windows are marked and automatically unminimized on selection
-- Liquid Glass UI — native macOS visual style
+- Liquid Glass UI — native macOS 26 visual style
 - Menu bar utility — no Dock icon
-- Launch at Login support via `SMAppService`
+- Launch at Login via `SMAppService`
 
-## Requirements
+## Requirements & Installation
 
-macOS 26 or later.
-
-## Installation
-
-Build from source with Xcode 26 or later. No prebuilt release for v0.1.
+macOS 26 or later. No prebuilt release — build from source with Xcode 26+.
 
 1. Clone the repo
 2. Open `optiontab.xcodeproj`
@@ -35,18 +33,12 @@ Build from source with Xcode 26 or later. No prebuilt release for v0.1.
 
 ## Permissions
 
-OptionTab requires **Accessibility** access to:
-
-- Read window titles and attributes via the Accessibility API
-- Raise and unminimize windows
-- Listen for global key events (`Option+Tab`, modifier release)
-
-Screen Recording is **not** required — OptionTab never captures window contents.
+OptionTab requires **Accessibility** access to read window titles and attributes, raise and unminimize windows, and listen for global key events. Screen Recording is not required.
 
 ## Roadmap
 
 - **v0.2** — Preferences window, configurable hotkey, theme options
-- **v0.3** — Window thumbnails (optional toggle in preferences)
+- **v0.3** — Window thumbnails (optional)
 - **v0.4** — Prebuilt signed release
 
 ## Contributing
