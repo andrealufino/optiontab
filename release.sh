@@ -59,7 +59,7 @@ security find-identity -v -p codesigning | grep -q "$SIGN_IDENTITY_PREFIX" \
 ok "Prerequisites OK"
 
 # ─── Bump version in .pbxproj ─────────────────────────────────────────────
-step "Bumping version in $PBXPROJ…"
+step "Bumping version in $PBXPROJ..."
 
 CURRENT_BUILD="$(grep -E 'CURRENT_PROJECT_VERSION = [0-9]+' "$PBXPROJ" | head -1 | grep -oE '[0-9]+')"
 [[ -n "$CURRENT_BUILD" ]] || die "Could not read CURRENT_PROJECT_VERSION from $PBXPROJ"
