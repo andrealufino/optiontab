@@ -40,6 +40,12 @@ final class EventMonitorService {
     /// Fired when a click occurs outside the overlay panel. The panel is passed as context.
     var onClickOutsideOverlay: (() -> Void)?
 
+    /// Fired when the mouse moves inside the overlay panel.
+    ///
+    /// Used to enable hover-based selection only after a real mouse movement,
+    /// preventing passive selection when the overlay appears under a stationary cursor.
+    var onMouseMoved: (() -> Void)?
+
     // MARK: Private Properties
 
     private var globalMonitor: Any?
@@ -68,7 +74,7 @@ final class EventMonitorService {
             }
         }
 
-        localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged, .leftMouseDown, .rightMouseDown]) { [weak self] event in
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged, .leftMouseDown, .rightMouseDown, .mouseMoved]) { [weak self] event in
             Task { @MainActor [weak self] in
                 self?.handleLocalEvent(event)
             }
@@ -122,6 +128,8 @@ final class EventMonitorService {
             handleKeyDown(event)
         case .leftMouseDown, .rightMouseDown:
             handleMouseDown(event)
+        case .mouseMoved:
+            onMouseMoved?()
         default:
             break
         }
