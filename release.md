@@ -2,6 +2,8 @@
 
 `release.sh` automates the full release pipeline: version bump, archive, Developer ID signing, notarization, DMG packaging, git tag, and GitHub Release creation.
 
+> **Tag convention**: tags are always the plain semver `X.Y.Z` — never prefix with `v`.
+
 ---
 
 ## One-time setup
@@ -72,7 +74,7 @@ No arguments — the script reads the version from `VERSION`.
 | 6 | Creates a `.dmg` with `create-dmg` (540×380 window, Applications drop-link) |
 | 7 | Submits the DMG to Apple's notary service and waits for approval (typically 2–5 min) |
 | 8 | Staples the notarization ticket to the DMG and validates it |
-| 9 | Creates an annotated git tag `vX.Y.Z` on the bump commit and pushes it |
+| 9 | Creates an annotated git tag `X.Y.Z` on the bump commit and pushes it |
 | 10 | Creates a GitHub Release with `--generate-notes` and attaches the DMG |
 
 ---
@@ -91,8 +93,8 @@ The version in `VERSION` is the same as the one already in `project.pbxproj`. Up
 **"Git working tree not clean"**  
 Commit or stash all changes before running the script. The only change the script makes is the version bump — it cannot start from a dirty tree.
 
-**"Tag vX.Y.Z already exists"**  
-The tag has already been created (possibly from a failed run). Delete it if appropriate: `git tag -d vX.Y.Z && git push origin :refs/tags/vX.Y.Z`.
+**"Tag X.Y.Z already exists"**  
+The tag has already been created (possibly from a failed run). Delete it if appropriate: `git tag -d X.Y.Z && git push origin :refs/tags/X.Y.Z`.
 
 **"notary profile 'optiontab-notary' not found"**  
 Run the `xcrun notarytool store-credentials` command from the [One-time setup](#one-time-setup) section above.
@@ -118,5 +120,5 @@ After `release.sh` completes:
    git checkout develop && git merge main --no-ff
    git push origin main develop
    ```
-2. Verify the release is live: `gh release view vX.Y.Z`
+2. Verify the release is live: `gh release view X.Y.Z`
 3. Update `VERSION` on `develop` to the next development version if desired (e.g. `0.2.0-dev`). Not required — the script will reject a non-semver value at runtime.

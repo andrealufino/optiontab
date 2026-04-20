@@ -38,7 +38,7 @@ VERSION_FILE="./VERSION"
 VERSION="$(tr -d '[:space:]' < "$VERSION_FILE")"
 [[ -n "$VERSION" ]] || die "VERSION file is empty"
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "VERSION must be semver X.Y.Z (got: $VERSION)"
-TAG="v${VERSION}"
+TAG="${VERSION}"
 ok "Version: $VERSION (tag: $TAG)"
 
 # ─── Prerequisites ─────────────────────────────────────────────────────────
