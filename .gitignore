@@ -12,3 +12,23 @@ DerivedData/
 *.dSYM
 Pods/
 .build/
+
+# Local signing config
+Local.xcconfig
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*~
+
+# Xcode extra
+*.xccheckout
+*.moved-aside
+*.hmap
+timeline.xctimeline
+playground.xcworkspace
+
+# Fastlane
+fastlane/report.xml
+fastlane/screenshots
