@@ -107,6 +107,7 @@ Always build after code changes. Never assume it compiles.
 - `develop` — all work happens here
 - Atomic commits per logical change
 - Commit messages: imperative mood, English, no AI attribution
+- Git tags use plain semver `X.Y.Z` — never prefix with `v`. Applies to local tags, remote tags, and GitHub Release tag names.
 
 ## Entitlements
 
