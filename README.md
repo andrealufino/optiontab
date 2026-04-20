@@ -32,6 +32,8 @@ macOS 26 or later. No prebuilt release yet — build from source with Xcode 26+.
 ```bash
 git clone https://github.com/andrealufino/optiontab.git
 cd optiontab
+cp Local.xcconfig.template Local.xcconfig
+# edit Local.xcconfig and set DEVELOPMENT_TEAM = <your-10-char-team-id>
 open optiontab.xcodeproj
 ```
 
@@ -62,6 +64,8 @@ A guided onboarding prompt appears on first launch.
 Pull requests and issues are welcome. Please target the `develop` branch.
 
 The project uses Swift 6 strict concurrency and zero third-party dependencies — keep it that way. Before opening a PR, make sure the build is clean (`⌘B` in Xcode or `xcodebuild` from the command line).
+
+Maintainers: see [release.md](release.md) for the full release workflow.
 
 ## License
 
