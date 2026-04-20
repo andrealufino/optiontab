@@ -53,12 +53,6 @@ OptionTab requires **Accessibility** access to read window titles, raise and unm
 
 A guided onboarding prompt appears on first launch.
 
-## Roadmap
-
-- **v0.2** — Preferences window, configurable hotkey, theme options
-- **v0.3** — Window thumbnails (optional)
-- **v0.4** — Prebuilt signed release
-
 ## Contributing
 
 Pull requests and issues are welcome. Please target the `develop` branch.
