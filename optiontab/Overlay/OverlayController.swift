@@ -31,6 +31,13 @@ final class OverlayController {
     /// Whether the overlay panel is currently visible.
     private(set) var isVisible: Bool = false
 
+    /// Whether hover-based selection is enabled for the current overlay session.
+    ///
+    /// Starts as `false` on each show/cycle so that a stationary cursor under
+    /// the panel does not passively override the keyboard-driven selection.
+    /// Becomes `true` on the first `.mouseMoved` event delivered to the local monitor.
+    private var mouseHoverEnabled: Bool = false
+
     private var panel: OverlayPanel?
     private let windowListService = WindowListService()
     private let windowRaiser = WindowRaiser()
@@ -66,6 +73,7 @@ final class OverlayController {
 
         windows = fetched
         selectedIndex = fetched.count > 1 ? 1 : 0
+        mouseHoverEnabled = false
 
         presentPanel()
         eventMonitor.start()
@@ -106,12 +114,14 @@ final class OverlayController {
     func cycleForward() {
         guard !windows.isEmpty else { return }
         selectedIndex = (selectedIndex + 1) % windows.count
+        mouseHoverEnabled = false
     }
 
     /// Moves the selection backward by one row, wrapping around.
     func cycleBackward() {
         guard !windows.isEmpty else { return }
         selectedIndex = (selectedIndex - 1 + windows.count) % windows.count
+        mouseHoverEnabled = false
     }
 
     /// Moves the selection backward only if the overlay is currently visible.
@@ -125,8 +135,12 @@ final class OverlayController {
 
     /// Updates the selected index to match a hover event from a row view.
     ///
+    /// Ignored until `mouseHoverEnabled` is true — i.e., until the mouse has
+    /// actually moved after the overlay appeared or after the last keyboard cycle.
+    ///
     /// - Parameter index: The row index the cursor is hovering over.
     func hoverSelected(_ index: Int) {
+        guard mouseHoverEnabled else { return }
         guard index >= 0, index < windows.count else { return }
         selectedIndex = index
     }
@@ -162,6 +176,7 @@ final class OverlayController {
         isVisible = false
         windows = []
         selectedIndex = 0
+        mouseHoverEnabled = false
 
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.15
@@ -200,5 +215,6 @@ final class OverlayController {
         eventMonitor.onUpArrowPressed = { [weak self] in self?.cycleBackward() }
         eventMonitor.onEscapePressed = { [weak self] in self?.cancel() }
         eventMonitor.onClickOutsideOverlay = { [weak self] in self?.cancel() }
+        eventMonitor.onMouseMoved = { [weak self] in self?.mouseHoverEnabled = true }
     }
 }
