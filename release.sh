@@ -4,9 +4,15 @@
 #
 # Usage:  ./release.sh
 #
-# Reads the version from the VERSION file in the repo root (semver X.Y.Z).
-# Automatically bumps MARKETING_VERSION and CURRENT_PROJECT_VERSION in the
-# .pbxproj, commits and pushes the bump before archiving.
+# Must be run from the `develop` branch with a clean, up-to-date working tree.
+# Reads the version from the VERSION file (semver X.Y.Z), then:
+#   1. Validates prerequisites
+#   2. Bumps MARKETING_VERSION and CURRENT_PROJECT_VERSION in .pbxproj, commits and pushes to develop
+#   3. Merges develop → main (--no-ff), pushes main
+#   4. Archives, signs, notarizes, packages to DMG
+#   5. Tags the main merge commit, pushes the tag
+#   6. Creates the GitHub Release with the DMG attached
+#   7. Fast-forward merges main → develop to keep branches in sync, pushes develop
 #
 # Requires: Xcode, create-dmg, gh, a notarytool keychain profile.
 #   brew install create-dmg gh
@@ -31,8 +37,23 @@ step() { echo -e "${C_BLUE}▸${C_OFF} $*"; }
 ok()   { echo -e "${C_GREEN}✓${C_OFF} $*"; }
 die()  { echo -e "${C_RED}✗${C_OFF} $*" >&2; exit 1; }
 
+# ─── Error trap ────────────────────────────────────────────────────────────
+# Emits a recovery hint when the script fails after the merge to main is pushed.
+MERGE_COMMIT_SHA=""
+on_error() {
+    local exit_code=$?
+    if [[ -n "${MERGE_COMMIT_SHA}" ]]; then
+        echo ""
+        echo -e "${C_RED}✗${C_OFF} Release aborted after merge to main was already pushed."
+        echo -e "${C_DIM}  main and develop are at ${MERGE_COMMIT_SHA:0:7} on origin."
+        echo -e "  To recover: investigate the failure, bump VERSION to a new number, rerun release.sh.${C_OFF}"
+    fi
+    exit $exit_code
+}
+trap on_error ERR
+
 # ─── Read version from file ────────────────────────────────────────────────
-step "Reading version from VERSION file…"
+step "Reading version from VERSION file..."
 VERSION_FILE="./VERSION"
 [[ -f "$VERSION_FILE" ]] || die "VERSION file not found at $VERSION_FILE"
 VERSION="$(tr -d '[:space:]' < "$VERSION_FILE")"
@@ -42,19 +63,37 @@ TAG="${VERSION}"
 ok "Version: $VERSION (tag: $TAG)"
 
 # ─── Prerequisites ─────────────────────────────────────────────────────────
-step "Checking prerequisites…"
+step "Checking prerequisites..."
+
+CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+[[ "$CURRENT_BRANCH" == "develop" ]] \
+  || die "release.sh must be run from develop (current: $CURRENT_BRANCH)"
+
 command -v xcodebuild >/dev/null || die "xcodebuild not found (install Xcode)"
 command -v create-dmg >/dev/null || die "create-dmg not found (brew install create-dmg)"
 command -v gh         >/dev/null || die "gh CLI not found (brew install gh)"
 gh auth status >/dev/null 2>&1   || die "gh not authenticated (run: gh auth login)"
 
 xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1 \
-  || die "notary profile '$NOTARY_PROFILE' not found. Run: xcrun notarytool store-credentials \"$NOTARY_PROFILE\" --apple-id <…> --team-id <…> --password <app-specific-pw>"
+  || die "notary profile '$NOTARY_PROFILE' not found. Run: xcrun notarytool store-credentials \"$NOTARY_PROFILE\" --apple-id <...> --team-id <...> --password <app-specific-pw>"
 
 security find-identity -v -p codesigning | grep -q "$SIGN_IDENTITY_PREFIX" \
   || die "No Developer ID Application signing identity found in keychain. Check Local.xcconfig and your certificate."
 
 [[ -z "$(git status --porcelain)" ]] || die "Git working tree not clean. Commit or stash first."
+
+# Verify develop is in sync with origin
+git fetch origin develop main
+LOCAL_DEVELOP="$(git rev-parse develop)"
+REMOTE_DEVELOP="$(git rev-parse origin/develop)"
+[[ "$LOCAL_DEVELOP" == "$REMOTE_DEVELOP" ]] \
+  || die "develop is not in sync with origin/develop. Push or pull first."
+
+# Verify origin/main is not ahead of local main
+MAIN_BEHIND="$(git rev-list --count main..origin/main)"
+[[ "$MAIN_BEHIND" -eq 0 ]] \
+  || die "origin/main has $MAIN_BEHIND commit(s) not in local main. Run: git checkout main && git pull"
+
 ! git rev-parse "$TAG" >/dev/null 2>&1 || die "Tag $TAG already exists."
 ok "Prerequisites OK"
 
@@ -71,12 +110,20 @@ sed -i '' "s/CURRENT_PROJECT_VERSION = [0-9]*/CURRENT_PROJECT_VERSION = $NEW_BUI
 git diff --quiet "$PBXPROJ" && die "VERSION file matches current .pbxproj — nothing to bump. Update VERSION to a new version first."
 
 git add "$PBXPROJ"
-CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 git commit -m "chore: bump version to $VERSION ($NEW_BUILD)"
-git push origin "$CURRENT_BRANCH"
-ok "Bumped to $VERSION (build $NEW_BUILD), pushed to $CURRENT_BRANCH"
+git push origin develop
+ok "Bumped to $VERSION (build $NEW_BUILD), pushed to develop"
 
-COMMIT_SHA="$(git rev-parse HEAD)"
+BUMP_COMMIT_SHA="$(git rev-parse HEAD)"
+
+# ─── Merge develop → main ─────────────────────────────────────────────────
+step "Merging develop into main..."
+git checkout main
+git pull --ff-only origin main
+git merge --no-ff develop -m "release: $VERSION"
+git push origin main
+MERGE_COMMIT_SHA="$(git rev-parse HEAD)"
+ok "Merged develop into main (commit ${MERGE_COMMIT_SHA:0:7})"
 
 # ─── Clean & paths ─────────────────────────────────────────────────────────
 rm -rf "$BUILD_DIR"
@@ -87,7 +134,7 @@ STAGING_DIR="${BUILD_DIR}/staging"
 DMG_PATH="${BUILD_DIR}/${APP_NAME}-${VERSION}.dmg"
 
 # ─── Archive ───────────────────────────────────────────────────────────────
-step "Archiving (scheme: $SCHEME)…"
+step "Archiving (scheme: $SCHEME)..."
 xcodebuild -quiet \
   -project "$PROJECT" \
   -scheme "$SCHEME" \
@@ -104,7 +151,7 @@ SIGN_IDENTITY="$(security find-identity -v -p codesigning | grep "$SIGN_IDENTITY
 [[ -n "$SIGN_IDENTITY" ]] || die "Could not resolve signing identity"
 
 # ─── Export (Developer ID signed, hardened runtime) ────────────────────────
-step "Exporting signed .app…"
+step "Exporting signed .app..."
 TEAM_ID="$(security find-identity -v -p codesigning | grep "$SIGN_IDENTITY_PREFIX" | head -1 | grep -oE '\([A-Z0-9]{10}\)' | tr -d '()')"
 [[ -n "$TEAM_ID" ]] || die "Could not extract Team ID from signing identity"
 
@@ -141,7 +188,7 @@ echo "$CODESIGN_INFO" | grep -q "flags=.*runtime" \
 ok "Signature + hardened runtime verified"
 
 # ─── DMG ───────────────────────────────────────────────────────────────────
-step "Building DMG…"
+step "Building DMG..."
 mkdir -p "$STAGING_DIR"
 cp -R "$APP_PATH" "$STAGING_DIR/"
 
@@ -157,31 +204,38 @@ create-dmg \
 ok "DMG: $DMG_PATH"
 
 # ─── Notarize ──────────────────────────────────────────────────────────────
-step "Submitting to Apple notary service (2–5 min)…"
+step "Submitting to Apple notary service (2-5 min)..."
 xcrun notarytool submit "$DMG_PATH" \
   --keychain-profile "$NOTARY_PROFILE" \
   --wait
 ok "Notarization accepted"
 
 # ─── Staple ────────────────────────────────────────────────────────────────
-step "Stapling ticket…"
+step "Stapling ticket..."
 xcrun stapler staple "$DMG_PATH" >/dev/null
 xcrun stapler validate "$DMG_PATH" >/dev/null
 ok "Stapled and validated"
 
-# ─── Tag + push ────────────────────────────────────────────────────────────
-step "Tagging $TAG on $(git rev-parse --short "$COMMIT_SHA")…"
-git tag -a "$TAG" "$COMMIT_SHA" -m "Release $VERSION"
+# ─── Tag on main merge commit ─────────────────────────────────────────────
+step "Tagging $TAG on main merge commit ${MERGE_COMMIT_SHA:0:7}..."
+git tag -a "$TAG" "$MERGE_COMMIT_SHA" -m "Release $VERSION"
 git push origin "$TAG"
 ok "Tag pushed"
 
 # ─── GitHub Release ────────────────────────────────────────────────────────
-step "Creating GitHub Release…"
+step "Creating GitHub Release..."
 gh release create "$TAG" \
   "$DMG_PATH" \
   --title "$VERSION" \
   --generate-notes
 REPO="$(gh repo view --json nameWithOwner -q .nameWithOwner)"
 echo
-ok "Release published 🎉"
+ok "Release published"
 echo -e "${C_DIM}https://github.com/${REPO}/releases/tag/${TAG}${C_OFF}"
+
+# ─── Sync develop with main ────────────────────────────────────────────────
+step "Syncing develop with main..."
+git checkout develop
+git merge --ff-only main
+git push origin develop
+ok "develop synced with main"
