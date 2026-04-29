@@ -69,8 +69,11 @@ struct SwitcherListView: View {
         }
         .frame(width: 420)
         .scrollContentBackground(.hidden)
-        .background(Color.clear)
-        .glassEffect(in: RoundedRectangle(cornerRadius: 22))
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22))
+        .overlay(
+            RoundedRectangle(cornerRadius: 22)
+                .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+        )
         .clipShape(RoundedRectangle(cornerRadius: 22))
     }
 

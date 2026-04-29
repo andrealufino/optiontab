@@ -2,10 +2,10 @@
 
 ## Project overview
 
-**OptionTab** is a native macOS 26+ utility. Pressing `Option+Tab` shows a vertical list of all windows belonging to the currently frontmost application, letting the user switch between them without leaving the keyboard.
+**OptionTab** is a native macOS 14+ utility. Pressing `Option+Tab` shows a vertical list of all windows belonging to the currently frontmost application, letting the user switch between them without leaving the keyboard.
 
 - Bundle ID: `com.andrealufino.optiontab`
-- Minimum deployment: macOS 26
+- Minimum deployment: macOS 14 (Sonoma)
 - Activation policy: `.accessory` (menu bar only, no Dock icon)
 - No sandbox, hardened runtime enabled
 - Version: 0.1.0
@@ -16,7 +16,7 @@
 - SwiftUI + AppKit hybrid (`NSPanel` hosting `NSHostingView`)
 - Carbon `RegisterEventHotKey` for global hotkey (`Option+Tab`)
 - `AXUIElement` APIs for window enumeration and raising
-- Liquid Glass via `.glassEffect(in:)` (macOS 26+)
+- Translucent background via `.ultraThinMaterial` (macOS 14 baseline; Liquid Glass would require macOS 26)
 - `SMAppService.mainApp` for Launch at Login
 - Zero third-party dependencies
 
@@ -67,9 +67,9 @@ Full routing rationale: `docs/260418-01-event-routing-v1.md`.
 - Sort: focused window first, then preserve AX traversal order
 - Stable ID: pointer address of `AXUIElementRef` (used only within a single enumeration pass)
 
-### Liquid Glass
-- One container, one `.glassEffect(in: RoundedRectangle(cornerRadius: 22))`
-- No `GlassEffectContainer` needed (single surface, no sibling morphing)
+### Overlay material
+- One container, one `.background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22))`
+- A subtle 1pt white stroke overlay adds edge definition
 - `NSPanel.hasShadow = false` — shadow is owned by the SwiftUI shape, not the window system
 - `NSPanel.isOpaque = false`, `backgroundColor = .clear`
 
