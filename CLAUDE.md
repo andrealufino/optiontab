@@ -68,8 +68,9 @@ Full routing rationale: `docs/260418-01-event-routing-v1.md`.
 - Stable ID: pointer address of `AXUIElementRef` (used only within a single enumeration pass)
 
 ### Overlay material
-- One container, one `.background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22))`
-- A subtle 1pt white stroke overlay adds edge definition
+- macOS 26+: `.glassEffect(in: RoundedRectangle(cornerRadius: 22))` (Liquid Glass)
+- macOS 14–25: `.background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22))` + 1pt white stroke overlay
+- Branched via `if #available(macOS 26, *)` in `SwitcherListView.body`; shared scroll content lives in `scrollList` computed property
 - `NSPanel.hasShadow = false` — shadow is owned by the SwiftUI shape, not the window system
 - `NSPanel.isOpaque = false`, `backgroundColor = .clear`
 

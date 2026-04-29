@@ -27,7 +27,7 @@ macOS has no built-in way to switch between windows of the same app with just th
 
 ## Requirements & Installation
 
-macOS 14 (Sonoma) or later. No prebuilt release yet — build from source with Xcode 15+.
+macOS 14 (Sonoma) or later. No prebuilt release yet — build from source with Xcode 16+.
 
 ```bash
 git clone https://github.com/andrealufino/optiontab.git
