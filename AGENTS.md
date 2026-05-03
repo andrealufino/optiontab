@@ -1,4 +1,4 @@
-# CLAUDE.md — OptionTab
+# AGENTS.md — OptionTab
 
 ## Project overview
 
