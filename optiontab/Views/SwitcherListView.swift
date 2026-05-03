@@ -12,9 +12,10 @@ import SwiftUI
 
 /// The root SwiftUI view hosted inside the overlay panel.
 ///
-/// Renders a vertical Liquid Glass container with one `WindowRowView` per window.
-/// Wraps in a `ScrollView` when the list exceeds the available height, and keeps
-/// the selected row scrolled into view on every cycle step.
+/// Renders a vertical container with one `WindowRowView` per window. Uses Liquid Glass
+/// on macOS 26+ and `.ultraThinMaterial` on macOS 14–25. Wraps in a `ScrollView` when
+/// the list exceeds the available height, and keeps the selected row scrolled into view
+/// on every cycle step.
 struct SwitcherListView: View {
 
     // MARK: State & Environment
@@ -29,6 +30,26 @@ struct SwitcherListView: View {
     // MARK: Body
 
     var body: some View {
+        if #available(macOS 26, *) {
+            scrollList
+                .background(Color.clear)
+                .glassEffect(in: RoundedRectangle(cornerRadius: 22))
+                .clipShape(RoundedRectangle(cornerRadius: 22))
+        } else {
+            scrollList
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22)
+                        .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 22))
+        }
+    }
+
+    // MARK: Private Views
+
+    /// The scroll container listing all windows, shared between OS-variant styling branches.
+    private var scrollList: some View {
         ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 0) {
@@ -69,9 +90,6 @@ struct SwitcherListView: View {
         }
         .frame(width: 420)
         .scrollContentBackground(.hidden)
-        .background(Color.clear)
-        .glassEffect(in: RoundedRectangle(cornerRadius: 22))
-        .clipShape(RoundedRectangle(cornerRadius: 22))
     }
 
 

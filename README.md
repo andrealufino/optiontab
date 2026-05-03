@@ -5,7 +5,7 @@
 
   A native macOS window switcher. Press `Option+Tab` to see all windows of the frontmost app and raise the one you want — without ever leaving the keyboard.
 
-  ![macOS 26+](https://img.shields.io/badge/macOS-26%2B-000000?logo=apple&logoColor=white)
+  ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-000000?logo=apple&logoColor=white)
   ![Swift 6](https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white)
   ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
 
@@ -21,13 +21,13 @@ macOS has no built-in way to switch between windows of the same app with just th
 - `Option+Tab` / `Option+Shift+Tab` global hotkey — forward and backward cycling
 - Lists all windows from all Spaces, including minimized ones
 - Minimized windows are marked and automatically unminimized on selection
-- Liquid Glass UI — native macOS 26 visual style
+- Translucent material UI — uses `.ultraThinMaterial` for a native macOS look (Liquid Glass on macOS 26)
 - Menu bar utility — no Dock icon, zero footprint
 - Launch at Login via `SMAppService`
 
 ## Requirements & Installation
 
-macOS 26 or later. No prebuilt release yet — build from source with Xcode 26+.
+macOS 14 (Sonoma) or later. No prebuilt release yet — build from source with Xcode 16+.
 
 ```bash
 git clone https://github.com/andrealufino/optiontab.git
