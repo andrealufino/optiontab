@@ -15,16 +15,26 @@ struct AppWindow: Identifiable, Equatable {
 
     // MARK: Properties
 
-    /// Stable identifier for use in SwiftUI lists. Derived from the AX element pointer.
+    /// Stable identifier for use in SwiftUI lists. Derived from the CGWindowID when available,
+    /// otherwise from the AX element pointer.
     let id: Int
 
     /// The process identifier of the owning application.
     let pid: pid_t
 
     /// The underlying Accessibility element for this window.
-    let axElement: AXUIElement
+    ///
+    /// May be `nil` for windows that live on a different Space and are therefore not
+    /// exposed by `kAXWindowsAttribute` at enumeration time. Such windows are still
+    /// listed using `CGWindowListCopyWindowInfo` and raised on a best-effort basis.
+    let axElement: AXUIElement?
 
-    /// The window title. Falls back to `"Untitled"` when the AX attribute is absent.
+    /// The Core Graphics window identifier, when known.
+    ///
+    /// Always populated for windows discovered via `CGWindowListCopyWindowInfo`.
+    let cgWindowID: CGWindowID?
+
+    /// The window title. Falls back to `"Untitled"` when no title can be read.
     let title: String
 
     /// Whether the window is currently minimized to the Dock.
