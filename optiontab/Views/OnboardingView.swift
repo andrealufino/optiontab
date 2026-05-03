@@ -60,11 +60,28 @@ struct OnboardingView: View {
             .multilineTextAlignment(.center)
             .fixedSize(horizontal: false, vertical: true)
 
-            Button("Open System Settings") {
-                openAccessibilitySettings()
+            Text(
+                "If OptionTab already appears enabled but this screen will not go away, " +
+                "remove OptionTab from the list with the – button and add it back from the freshly built app. " +
+                "This is required after every Debug rebuild because the code signature changes."
+            )
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 12) {
+                Button("Open System Settings") {
+                    openAccessibilitySettings()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+
+                Button("Re-check") {
+                    permissionsService.refresh()
+                }
+                .controlSize(.large)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
         }
     }
 
@@ -78,12 +95,29 @@ struct OnboardingView: View {
                 .font(.title2)
                 .fontWeight(.semibold)
 
-            Text(
-                "You may need to quit and relaunch OptionTab for the permission to take full effect."
-            )
-            .font(.body)
-            .foregroundStyle(.secondary)
-            .multilineTextAlignment(.center)
+            if permissionsService.isScreenRecordingGranted {
+                Text(
+                    "Screen Recording is also enabled — windows on other Spaces (including fullscreen apps on separate desktops) will appear in the switcher."
+                )
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text(
+                    "To list windows that live on **other desktops** (fullscreen apps on a separate Space), OptionTab also needs **Screen Recording** permission. Without it, only windows on the current desktop are shown."
+                )
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+
+                Button("Enable Screen Recording") {
+                    permissionsService.requestScreenRecording()
+                    openScreenRecordingSettings()
+                }
+                .controlSize(.large)
+            }
 
             HStack(spacing: 12) {
                 Button("Relaunch") {
@@ -106,6 +140,12 @@ struct OnboardingView: View {
     /// Opens the Accessibility pane in System Settings.
     private func openAccessibilitySettings() {
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
+        NSWorkspace.shared.open(url)
+    }
+
+    /// Opens the Screen Recording pane in System Settings.
+    private func openScreenRecordingSettings() {
+        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!
         NSWorkspace.shared.open(url)
     }
 

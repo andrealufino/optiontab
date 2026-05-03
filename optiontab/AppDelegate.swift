@@ -82,8 +82,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             print("[Perms] permission granted — registering hotkey")
             registerHotKey()
             refreshMenuBar()
-            // Close the onboarding window — user will see the "granted" state
-            // and decide whether to dismiss or relaunch.
+            // Auto-dismiss the onboarding only when *all* relevant permissions are
+            // granted. If Screen Recording is still missing the user needs to act on
+            // the on-screen prompt to enable cross-Space window listing, so we keep
+            // the panel open in that case.
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(2))
+                guard let self else { return }
+                if permissionsService.isScreenRecordingGranted {
+                    onboardingPanel?.close()
+                }
+            }
         }
         permissionsService.onPermissionRevoked = { [weak self] in
             guard let self else { return }
