@@ -25,6 +25,12 @@ final class MenuBarController {
     /// Called when the user selects "Launch at Login".
     var onToggleLaunchAtLogin: (() -> Void)?
 
+    /// Called when the user selects "Cross-Space Discovery: Grant…" while access is not yet granted.
+    var onRequestScreenRecording: (() -> Void)?
+
+    /// Called when the user selects "Cross-Space Discovery: Open Settings…" to revisit the choice.
+    var onOpenScreenRecordingSettings: (() -> Void)?
+
     /// Called when the user selects "Quit OptionTab".
     var onQuit: (() -> Void)?
 
@@ -32,6 +38,7 @@ final class MenuBarController {
 
     private var statusItem: NSStatusItem?
     private var isAccessibilityGranted: Bool = false
+    private var isScreenRecordingGranted: Bool = false
     private var isLaunchAtLoginEnabled: Bool = false
 
 
@@ -54,9 +61,11 @@ final class MenuBarController {
     ///
     /// - Parameters:
     ///   - isAccessibilityGranted: Whether Accessibility permission is currently granted.
+    ///   - isScreenRecordingGranted: Whether Screen Recording permission is granted (enables cross-Space discovery).
     ///   - isLaunchAtLoginEnabled: Whether launch at login is currently active.
-    func update(isAccessibilityGranted: Bool, isLaunchAtLoginEnabled: Bool) {
+    func update(isAccessibilityGranted: Bool, isScreenRecordingGranted: Bool, isLaunchAtLoginEnabled: Bool) {
         self.isAccessibilityGranted = isAccessibilityGranted
+        self.isScreenRecordingGranted = isScreenRecordingGranted
         self.isLaunchAtLoginEnabled = isLaunchAtLoginEnabled
 
         // Update icon to reflect permission state
@@ -83,6 +92,29 @@ final class MenuBarController {
             )
             warnItem.target = self
             menu.addItem(warnItem)
+            menu.addItem(.separator())
+        }
+
+        // Cross-Space discovery (Screen Recording — optional)
+        if isAccessibilityGranted {
+            if isScreenRecordingGranted {
+                let okItem = NSMenuItem(
+                    title: "Cross-Space Discovery: Enabled",
+                    action: nil,
+                    keyEquivalent: ""
+                )
+                okItem.isEnabled = false
+                menu.addItem(okItem)
+            } else {
+                let grantItem = NSMenuItem(
+                    title: "Enable Cross-Space Discovery…",
+                    action: #selector(handleRequestScreenRecording),
+                    keyEquivalent: ""
+                )
+                grantItem.target = self
+                grantItem.toolTip = "Allows OptionTab to list windows on other Spaces and fullscreen."
+                menu.addItem(grantItem)
+            }
             menu.addItem(.separator())
         }
 
@@ -136,6 +168,14 @@ final class MenuBarController {
 
     @objc private func handleToggleLaunchAtLogin() {
         onToggleLaunchAtLogin?()
+    }
+
+    @objc private func handleRequestScreenRecording() {
+        onRequestScreenRecording?()
+    }
+
+    @objc private func handleOpenScreenRecordingSettings() {
+        onOpenScreenRecordingSettings?()
     }
 
     @objc private func handleAbout() {

@@ -64,7 +64,7 @@ struct SwitcherListView: View {
                                 controller.hoverSelected(hoveredIndex)
                             },
                             onTap: { tappedWindow in
-                                controller.confirmSelection(tappedWindow)
+                                Task { await controller.confirmSelection(tappedWindow) }
                             }
                         )
                         .id(index)

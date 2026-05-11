@@ -274,6 +274,9 @@
 					"$(inherited)",
 					"-framework",
 					Carbon,
+					"-F/System/Library/PrivateFrameworks",
+					"-framework",
+					SkyLight,
 				);
 				OTHER_SWIFT_FLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = com.andrealufino.optiontab.dev;
@@ -315,6 +318,9 @@
 					"$(inherited)",
 					"-framework",
 					Carbon,
+					"-F/System/Library/PrivateFrameworks",
+					"-framework",
+					SkyLight,
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.andrealufino.optiontab;
 				PRODUCT_NAME = OptionTab;

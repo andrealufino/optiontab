@@ -38,8 +38,17 @@ final class OverlayPanel: NSPanel {
 
     // MARK: NSWindow Overrides
 
+    /// Mutable backing so we can flip `canBecomeKey` to `false` for the
+    /// duration of `orderOut(_:)` when handing focus to an external window.
+    ///
+    /// Mirrors AltTab `allSecondaryWindowsCanBecomeKey(false)` (`App.swift:84`):
+    /// without flipping this off, macOS may pick our own panel as the next key
+    /// window during orderOut, leaving the destination cross-Space window
+    /// raised but greyed out.
+    var canBecomeKeyOverride: Bool = true
+
     /// Returns `true` so the panel can receive key events while non-activating.
-    override var canBecomeKey: Bool { true }
+    override var canBecomeKey: Bool { canBecomeKeyOverride }
 
     /// Returns `true` to allow the panel to become main if needed.
     override var canBecomeMain: Bool { false }

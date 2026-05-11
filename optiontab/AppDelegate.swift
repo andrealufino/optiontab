@@ -36,7 +36,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Called when the application finishes launching.
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
-        print("[App] launched")
+        // Touch the SkyLight connection at launch to register us as a Window
+        // Server peer. Several SLPS SPIs are silent no-ops without this.
+        _ = CGS_CONNECTION
+        print("[App] launched (SkyLight connection: \(CGS_CONNECTION))")
+        wireOverlayController()
         setupMenuBar()
         setupPermissions()
 
@@ -68,11 +72,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             launchAtLoginService.toggle()
             refreshMenuBar()
         }
+        menuBarController.onRequestScreenRecording = { [weak self] in
+            guard let self else { return }
+            let granted = permissionsService.requestScreenRecordingAccess()
+            // CGRequestScreenCaptureAccess only prompts the first time; on subsequent
+            // calls it returns the cached decision. If still denied, send the user
+            // straight to System Settings so they can flip the toggle manually.
+            if !granted {
+                permissionsService.openScreenRecordingSettings()
+            }
+            refreshMenuBar()
+        }
+        menuBarController.onOpenScreenRecordingSettings = { [weak self] in
+            self?.permissionsService.openScreenRecordingSettings()
+        }
         menuBarController.onQuit = {
             NSApp.terminate(nil)
         }
 
         refreshMenuBar()
+    }
+
+    /// Connects the overlay controller to the live permissions state.
+    private func wireOverlayController() {
+        overlayController.isScreenRecordingGranted = { [weak self] in
+            self?.permissionsService.isScreenRecordingGranted ?? false
+        }
     }
 
     /// Wires permission-change callbacks to hotkey registration/deregistration.
@@ -92,6 +117,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             overlayController.cancel()
             refreshMenuBar()
             showOnboarding()
+        }
+        permissionsService.onScreenRecordingChanged = { [weak self] in
+            self?.refreshMenuBar()
         }
     }
 
@@ -142,6 +170,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func refreshMenuBar() {
         menuBarController.update(
             isAccessibilityGranted: permissionsService.isAccessibilityGranted,
+            isScreenRecordingGranted: permissionsService.isScreenRecordingGranted,
             isLaunchAtLoginEnabled: launchAtLoginService.isEnabled
         )
     }

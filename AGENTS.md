@@ -29,15 +29,17 @@ AppDelegate              ← NSApplicationDelegateAdaptor, wires all services
 ├── MenuBarController    ← NSStatusItem + NSMenu
 ├── LaunchAtLoginService ← SMAppService wrapper
 └── OverlayController    ← @Observable, owns overlay lifecycle
-    ├── WindowListService    ← AXUIElement enumeration, filters standard windows
+    ├── WindowListService    ← AX enumeration (standard + brute-force cross-Space) + CG-only fallback
     ├── EventMonitorService  ← NSEvent global/local monitors (key, flags, mouse)
-    ├── WindowRaiser         ← AXRaise + app.activate(), deminimize if needed
-    ├── OverlayPanel         ← NSPanel subclass (.nonactivatingPanel, .floating)
+    ├── WindowRaiser         ← SLPS + make-key-event + kAXRaiseAction (AltTab pattern, off-main queue)
+    ├── OverlayPanel         ← NSPanel subclass (.nonactivatingPanel, .floating) with canBecomeKeyOverride
     └── SwitcherListView     ← SwiftUI root view, Liquid Glass container
         └── WindowRowView    ← Per-row layout (icon, title, minimized badge)
 ```
 
 All services are `@Observable @MainActor final class`. Dependency injection via `@Environment` — no singletons.
+
+Cross-Space window discovery and raising use SkyLight private SPI declared in `AXPrivate.swift` (`_AXUIElementCreateWithRemoteToken`, `_SLPSSetFrontProcessWithOptions`, `SLPSPostEventRecordTo`, `CGSCopySpacesForWindows`, `CGSGetWindowLevel`). Touch `CGS_CONNECTION = CGSMainConnectionID()` once at app launch — without it, SLPS calls silently no-op.
 
 ## Key patterns
 
@@ -61,11 +63,38 @@ Full routing rationale: `docs/260418-01-event-routing-v1.md`.
 5. `Escape` / click outside → `cancel()` → dismiss without raising
 
 ### Window enumeration
-- `AXUIElementCreateApplication(pid)` → `kAXWindowsAttribute`
-- Filter: `kAXStandardWindowSubrole` only
+- `AXUIElementCreateApplication(pid)` → `kAXWindowsAttribute` covers the active Space only on macOS 14+
+- Cross-Space: brute-force `_AXUIElementCreateWithRemoteToken` over 1000 axId with magic `0x636F_636F`, filtered by subrole `kAXStandardWindowSubrole` / `kAXDialogSubrole` (AltTab/DockDoor pattern)
+- AX entries with `_AXUIElementGetWindow` cgID resolution are filtered against `realCGWindowIDs` (CG layer-0 set) and `isAtLeastNormalLevel` to drop Finder tab pages and palettes
+- Dedup by `cgWindowID`; pointer-address fallback only when cgID resolution fails
+- Brute-force cache 500 ms TTL per pid (`BruteForceCache`)
 - Focus match: `CFEqual` against `kAXFocusedWindowAttribute` (pointer addresses of `AXUIElement` are not stable across attribute reads)
-- Sort: focused window first, then preserve AX traversal order
-- Stable ID: pointer address of `AXUIElementRef` (used only within a single enumeration pass)
+- CG-only fallback (`CGWindowSnapshotProvider`) for windows AX cannot reach; ghost-filter drops `!isOnscreen && isOnActiveSpace && !appIsHidden`
+
+### Cross-Space raise (AltTab pattern)
+`WindowRaiser.performHybridRaise` runs on `raiseQueue` background `.userInteractive`:
+
+1. `_GetProcessForPID(pid, &psn)`
+2. `_SLPSSetFrontProcessWithOptions(&psn, cgID, SLPSMode.userGenerated.rawValue)` triggers the Space-switch animation
+3. `postMakeKeyWindowEvents` posts the 0xf8-byte mouse-down/mouse-up payload
+4. `AXUIElementPerformAction(element, kAXRaiseAction)`
+
+Nothing else. **Do not** add `kAXMainWindowAttribute = true`, `kAXFocusedAttribute = true`, `app.activate()` (pre or post), or a retry loop — each of those reintroduces a previously fixed regression (snap-back to previous app, greyed-out destination chrome).
+
+The destination window only ends up promoted to key if the overlay panel relinquishes `canBecomeKey` during its dismiss — see below.
+
+### Overlay dismiss must flip `canBecomeKey`
+When `confirm()` / `confirmSelection(_:)` hands focus to a raised window, `dismissPanelImmediate()` runs synchronously:
+
+```swift
+panel.canBecomeKeyOverride = false
+panel.orderOut(nil)
+panel.canBecomeKeyOverride = true
+```
+
+`OverlayPanel.canBecomeKeyOverride: Bool` is mutable and read by the `canBecomeKey` override. Without this flip, macOS picks our own panel as the next key window during `orderOut`, leaving the destination cross-Space window raised but greyed out. Mirrors AltTab `App.hideTilesPanelWithoutChangingKeyWindow()`.
+
+The animated dismiss (`dismissPanel()`) is retained for `cancel()` only (Escape, click outside) — those paths do not hand focus elsewhere, so the fade-out is safe.
 
 ### Overlay material
 - macOS 26+: `.glassEffect(in: RoundedRectangle(cornerRadius: 22))` (Liquid Glass)

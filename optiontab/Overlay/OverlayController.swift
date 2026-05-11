@@ -43,6 +43,13 @@ final class OverlayController {
     private let windowRaiser = WindowRaiser()
     let eventMonitor = EventMonitorService()
 
+    /// Provides cross-Space window discovery state at overlay show time.
+    ///
+    /// Wired by `AppDelegate` to `PermissionsService.isScreenRecordingGranted`.
+    /// Returns `false` when omitted so the overlay degrades gracefully if it is
+    /// ever instantiated without a configured permissions source.
+    var isScreenRecordingGranted: () -> Bool = { false }
+
 
     // MARK: Initialization
 
@@ -65,7 +72,10 @@ final class OverlayController {
             return
         }
 
-        let fetched = await windowListService.windows(for: app)
+        let fetched = await windowListService.windows(
+            for: app,
+            includeOtherSpaces: isScreenRecordingGranted()
+        )
         guard !fetched.isEmpty else {
             print("[Overlay] no standard windows — suppressing overlay")
             return
@@ -88,7 +98,12 @@ final class OverlayController {
     }
 
     /// Raises the currently selected window and dismisses the overlay.
-    func confirm() {
+    ///
+    /// `isVisible` is flipped to `false` before the `await` on `raise(_:)` to
+    /// prevent a second confirm fire — the global and local NSEvent monitors can
+    /// both deliver `flagsChanged` for the same Option release, and without the
+    /// pre-await flip both Tasks would clear the `guard isVisible` check.
+    func confirm() async {
         guard isVisible else { return }
         guard selectedIndex < windows.count else {
             dismissPanel()
@@ -96,17 +111,21 @@ final class OverlayController {
         }
         let target = windows[selectedIndex]
         print("[Overlay] confirming selection: '\(target.title)'")
-        dismissPanel()
+        // Tear down the panel synchronously *before* raise so it relinquishes
+        // key-window status. Without this the destination window arrives on
+        // its Space but stays greyed out — the system still considers our
+        // fading overlay panel the key window when raise fires.
+        dismissPanelImmediate()
         windowRaiser.raise(target)
     }
 
     /// Raises `window` directly (mouse click on a specific row).
     ///
     /// - Parameter window: The window the user clicked.
-    func confirmSelection(_ window: AppWindow) {
+    func confirmSelection(_ window: AppWindow) async {
         guard isVisible else { return }
         print("[Overlay] direct click on '\(window.title)'")
-        dismissPanel()
+        dismissPanelImmediate()
         windowRaiser.raise(window)
     }
 
@@ -192,6 +211,35 @@ final class OverlayController {
         print("[Overlay] panel dismissed")
     }
 
+    /// Tears down the overlay synchronously, without the fade-out animation.
+    ///
+    /// Used by `confirm()` / `confirmSelection(_:)` to ensure the panel
+    /// relinquishes key-window status before `WindowRaiser` runs the SLPS+AX
+    /// raise sequence.
+    ///
+    /// Mirrors AltTab's `hideTilesPanelWithoutChangingKeyWindow()`
+    /// (`App.swift:84-87`): flip `canBecomeKey` to `false` *before* orderOut so
+    /// macOS does not pick our own panel as the next key window while we are
+    /// trying to hand focus to a cross-Space target. Without this dance, the
+    /// destination window arrives on its Space but stays greyed out.
+    private func dismissPanelImmediate() {
+        guard let panel else { return }
+        eventMonitor.stop()
+        isVisible = false
+        windows = []
+        selectedIndex = 0
+        mouseHoverEnabled = false
+
+        panel.canBecomeKeyOverride = false
+        panel.orderOut(nil)
+        panel.canBecomeKeyOverride = true
+
+        self.panel = nil
+        #if DEBUG
+        print("[Overlay] panel dismissed (immediate, canBecomeKey guard)")
+        #endif
+    }
+
     /// Centers the panel on the screen containing `NSEvent.mouseLocation`.
     ///
     /// - Parameter panel: The panel to position.
@@ -208,7 +256,9 @@ final class OverlayController {
 
     /// Wires `EventMonitorService` callbacks to controller actions.
     private func wireEventMonitor() {
-        eventMonitor.onOptionReleased = { [weak self] in self?.confirm() }
+        eventMonitor.onOptionReleased = { [weak self] in
+            Task { @MainActor in await self?.confirm() }
+        }
         eventMonitor.onTabPressed = { [weak self] in self?.cycleForward() }
         eventMonitor.onShiftTabPressed = { [weak self] in self?.cycleBackward() }
         eventMonitor.onDownArrowPressed = { [weak self] in self?.cycleForward() }

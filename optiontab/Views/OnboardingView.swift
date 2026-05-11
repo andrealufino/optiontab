@@ -78,12 +78,7 @@ struct OnboardingView: View {
                 .font(.title2)
                 .fontWeight(.semibold)
 
-            Text(
-                "You may need to quit and relaunch OptionTab for the permission to take full effect."
-            )
-            .font(.body)
-            .foregroundStyle(.secondary)
-            .multilineTextAlignment(.center)
+            screenRecordingCard
 
             HStack(spacing: 12) {
                 Button("Relaunch") {
@@ -100,6 +95,37 @@ struct OnboardingView: View {
         }
     }
 
+    /// Optional invitation to grant Screen Recording for cross-Space discovery.
+    ///
+    /// Hidden when already granted; shown otherwise as a soft suggestion. Declining
+    /// keeps the app fully functional but limits the switcher to windows on the
+    /// active Space.
+    @ViewBuilder
+    private var screenRecordingCard: some View {
+        if permissionsService.isScreenRecordingGranted {
+            Text("Cross-Space discovery enabled — fullscreen and other Spaces will appear in the switcher.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        } else {
+            VStack(spacing: 8) {
+                Text(
+                    "To list windows on other Spaces and fullscreen, OptionTab also needs Screen Recording. " +
+                    "This is optional — the app works without it, but the switcher will only show windows on the current Space."
+                )
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+
+                Button("Enable Cross-Space Discovery…") {
+                    enableScreenRecording()
+                }
+                .controlSize(.regular)
+            }
+        }
+    }
+
 
     // MARK: Private Methods
 
@@ -107,6 +133,14 @@ struct OnboardingView: View {
     private func openAccessibilitySettings() {
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
         NSWorkspace.shared.open(url)
+    }
+
+    /// Triggers the Screen Recording TCC prompt; falls back to System Settings on subsequent denials.
+    private func enableScreenRecording() {
+        let granted = permissionsService.requestScreenRecordingAccess()
+        if !granted {
+            permissionsService.openScreenRecordingSettings()
+        }
     }
 
     /// Relaunches the app by spawning a new instance then terminating this one.
