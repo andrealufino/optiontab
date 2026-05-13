@@ -24,7 +24,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let permissionsService = PermissionsService()
     private let launchAtLoginService = LaunchAtLoginService()
     private let hotKeyService = HotKeyService()
-    private let overlayController = OverlayController()
+    private let optionKeyMonitor = OptionKeyMonitor()
+    private lazy var overlayController = OverlayController(optionKeyMonitor: optionKeyMonitor)
     private let menuBarController = MenuBarController()
 
     /// Panel hosting the onboarding SwiftUI view.
@@ -40,6 +41,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Server peer. Several SLPS SPIs are silent no-ops without this.
         _ = CGS_CONNECTION
         print("[App] launched (SkyLight connection: \(CGS_CONNECTION))")
+        optionKeyMonitor.start()
         wireOverlayController()
         setupMenuBar()
         setupPermissions()

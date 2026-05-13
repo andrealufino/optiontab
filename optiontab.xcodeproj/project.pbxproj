@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		1E2C7D61ED58454BA2CEE0F9 /* Local.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Local.xcconfig; path = Local.xcconfig; sourceTree = "<group>"; };
+		1E2C7D61ED58454BA2CEE0F9 /* Local.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Local.xcconfig; sourceTree = "<group>"; };
 		AD7C85142F941324001C0CE4 /* OptionTab.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OptionTab.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -30,11 +30,20 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		AD2794F02FAE1A9400BE4BAF /* Recovered References */ = {
+			isa = PBXGroup;
+			children = (
+				1E2C7D61ED58454BA2CEE0F9 /* Local.xcconfig */,
+			);
+			name = "Recovered References";
+			sourceTree = "<group>";
+		};
 		AD7C850B2F941324001C0CE4 = {
 			isa = PBXGroup;
 			children = (
 				AD7C85162F941324001C0CE4 /* optiontab */,
 				AD7C85152F941324001C0CE4 /* Products */,
+				AD2794F02FAE1A9400BE4BAF /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};

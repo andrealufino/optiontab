@@ -15,10 +15,36 @@ import SwiftUI
 ///
 /// `OverlayController` is the single source of truth for whether the overlay is
 /// visible, which windows are listed, and which row is currently selected.
-/// It coordinates `WindowListService`, `EventMonitorService`, and `WindowRaiser`.
+/// It coordinates `WindowListService`, `EventMonitorService`, `OptionKeyMonitor`,
+/// and `WindowRaiser`.
 @Observable
 @MainActor
 final class OverlayController {
+
+
+    // MARK: Private types
+
+    /// Internal lifecycle state of the overlay.
+    ///
+    /// Using an explicit state machine prevents the race where `isShowing: Bool`
+    /// would be reset by a `defer` while `confirm()` is still awaiting the raise.
+    private enum ShowState {
+        /// No overlay activity. Accepts a new `show(for:)` call.
+        case idle
+        /// Window enumeration is in flight. New `show` calls are dropped.
+        case loading
+        /// Panel is on screen and awaiting user input.
+        case visible
+        /// Confirm is in progress (raise queued). Guards against double-confirm.
+        case confirming
+    }
+
+    /// Direction for the initial selection when the overlay becomes visible.
+    private enum CycleDirection {
+        case forward
+        case backward
+    }
+
 
     // MARK: Properties
 
@@ -29,7 +55,10 @@ final class OverlayController {
     private(set) var selectedIndex: Int = 0
 
     /// Whether the overlay panel is currently visible.
-    private(set) var isVisible: Bool = false
+    ///
+    /// Computed from the internal state machine so there is a single source of
+    /// truth and no risk of the stored bool diverging from `state`.
+    var isVisible: Bool { state == .visible }
 
     /// Whether hover-based selection is enabled for the current overlay session.
     ///
@@ -38,10 +67,19 @@ final class OverlayController {
     /// Becomes `true` on the first `.mouseMoved` event delivered to the local monitor.
     private var mouseHoverEnabled: Bool = false
 
+    private var state: ShowState = .idle
+
+    /// Direction the user requested before the overlay became visible.
+    ///
+    /// Set to `.backward` when `Option+Shift+Tab` fires during loading, so the
+    /// initial selection starts at `count - 1` rather than `1`.
+    private var pendingDirection: CycleDirection = .forward
+
     private var panel: OverlayPanel?
     private let windowListService = WindowListService()
     private let windowRaiser = WindowRaiser()
     let eventMonitor = EventMonitorService()
+    private let optionKeyMonitor: OptionKeyMonitor
 
     /// Provides cross-Space window discovery state at overlay show time.
     ///
@@ -53,7 +91,9 @@ final class OverlayController {
 
     // MARK: Initialization
 
-    init() {
+    /// - Parameter optionKeyMonitor: The always-on Option-release tracker injected from `AppDelegate`.
+    init(optionKeyMonitor: OptionKeyMonitor) {
+        self.optionKeyMonitor = optionKeyMonitor
         wireEventMonitor()
     }
 
@@ -65,50 +105,96 @@ final class OverlayController {
     /// If the overlay is already visible, cycles the selection forward instead.
     /// Does nothing when the frontmost app has no standard windows.
     ///
+    /// Handles the rapid-press race: if Option is released while window
+    /// enumeration is in flight (before `EventMonitorService` is installed),
+    /// `OptionKeyMonitor` captures the release timestamp and this method
+    /// auto-confirms the default selection after presenting the panel.
+    ///
     /// - Parameter app: The application whose windows to list.
     func show(for app: NSRunningApplication) async {
-        if isVisible {
+        if state == .visible {
             cycleForward()
             return
         }
+        guard state == .idle else { return }
+        state = .loading
+        pendingDirection = .forward
+
+        let showStartedAt = Date()
 
         let fetched = await windowListService.windows(
             for: app,
             includeOtherSpaces: isScreenRecordingGranted()
         )
+
+        // The frontmost app may have changed while enumeration was async.
+        guard NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier else {
+            print("[Overlay] frontmost app changed during fetch — aborting")
+            state = .idle
+            return
+        }
+
         guard !fetched.isEmpty else {
             print("[Overlay] no standard windows — suppressing overlay")
+            state = .idle
             return
         }
 
         windows = fetched
-        selectedIndex = fetched.count > 1 ? 1 : 0
+        let initialIndex: Int
+        switch pendingDirection {
+        case .forward:  initialIndex = fetched.count > 1 ? 1 : 0
+        case .backward: initialIndex = fetched.count > 1 ? fetched.count - 1 : 0
+        }
+        selectedIndex = initialIndex
         mouseHoverEnabled = false
 
         presentPanel()
         eventMonitor.start()
-        isVisible = true
+        state = .visible
+
+        // Race resolution: detect an Option release that occurred while enumeration
+        // was in flight, before EventMonitorService was installed.
+        let releasedDuringLoad = optionKeyMonitor.consumeReleaseAfter(showStartedAt)
+        let optionStillDown = OptionKeyMonitor.isOptionCurrentlyDown()
+
+        if releasedDuringLoad && !optionStillDown {
+            if fetched.count == 1 {
+                // Only window is the frontmost itself — raising would be a no-op
+                // with a visible flicker. Dismiss cleanly instead.
+                print("[Overlay] Option released during load, single window — dismissing")
+                dismissPanelImmediate()
+                state = .idle
+                return
+            }
+            print("[Overlay] Option released during load — auto-confirming index \(initialIndex)")
+            state = .confirming
+            await confirm()
+        }
     }
 
     /// Dismisses the overlay without raising any window.
     func cancel() {
-        guard isVisible else { return }
+        guard state == .visible else { return }
         print("[Overlay] cancelled")
+        state = .idle
         dismissPanel()
     }
 
     /// Raises the currently selected window and dismisses the overlay.
     ///
-    /// `isVisible` is flipped to `false` before the `await` on `raise(_:)` to
-    /// prevent a second confirm fire — the global and local NSEvent monitors can
-    /// both deliver `flagsChanged` for the same Option release, and without the
-    /// pre-await flip both Tasks would clear the `guard isVisible` check.
+    /// `state` is flipped to `.confirming` before `dismissPanelImmediate()` to
+    /// prevent a double-confirm — both the global and local `NSEvent` monitors
+    /// can deliver `flagsChanged` for the same Option release, and without the
+    /// pre-dismiss state flip both Tasks would pass the guard.
     func confirm() async {
-        guard isVisible else { return }
+        guard state == .visible || state == .confirming else { return }
         guard selectedIndex < windows.count else {
-            dismissPanel()
+            dismissPanelImmediate()
+            state = .idle
             return
         }
+        state = .confirming
         let target = windows[selectedIndex]
         print("[Overlay] confirming selection: '\(target.title)'")
         // Tear down the panel synchronously *before* raise so it relinquishes
@@ -117,16 +203,19 @@ final class OverlayController {
         // fading overlay panel the key window when raise fires.
         dismissPanelImmediate()
         windowRaiser.raise(target)
+        state = .idle
     }
 
     /// Raises `window` directly (mouse click on a specific row).
     ///
     /// - Parameter window: The window the user clicked.
     func confirmSelection(_ window: AppWindow) async {
-        guard isVisible else { return }
+        guard state == .visible else { return }
         print("[Overlay] direct click on '\(window.title)'")
+        state = .confirming
         dismissPanelImmediate()
         windowRaiser.raise(window)
+        state = .idle
     }
 
     /// Moves the selection forward by one row, wrapping around.
@@ -143,13 +232,20 @@ final class OverlayController {
         mouseHoverEnabled = false
     }
 
-    /// Moves the selection backward only if the overlay is currently visible.
+    /// Moves the selection backward, or records the direction for the pending show.
     ///
     /// Used by the global `Option+Shift+Tab` Carbon hotkey, which can fire
-    /// independently of the overlay state.
+    /// independently of the overlay state. If the overlay is loading, stores the
+    /// direction so `show(for:)` starts at `count - 1` after enumeration.
     func cycleBackwardIfVisible() {
-        guard isVisible else { return }
-        cycleBackward()
+        switch state {
+        case .visible:
+            cycleBackward()
+        case .loading:
+            pendingDirection = .backward
+        case .idle, .confirming:
+            break
+        }
     }
 
     /// Updates the selected index to match a hover event from a row view.
@@ -189,10 +285,13 @@ final class OverlayController {
     }
 
     /// Fades the panel out and tears down state.
+    ///
+    /// Used by `cancel()` — does not hand focus to another window, so the
+    /// 150 ms animation is safe. `confirm()` uses `dismissPanelImmediate()`
+    /// instead to relinquish key-window status before the raise fires.
     private func dismissPanel() {
         guard let panel else { return }
         eventMonitor.stop()
-        isVisible = false
         windows = []
         selectedIndex = 0
         mouseHoverEnabled = false
@@ -225,7 +324,6 @@ final class OverlayController {
     private func dismissPanelImmediate() {
         guard let panel else { return }
         eventMonitor.stop()
-        isVisible = false
         windows = []
         selectedIndex = 0
         mouseHoverEnabled = false

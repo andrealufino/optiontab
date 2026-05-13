@@ -28,16 +28,18 @@ AppDelegate              ← NSApplicationDelegateAdaptor, wires all services
 ├── HotKeyService        ← Carbon RegisterEventHotKey, fires callback on Option+Tab
 ├── MenuBarController    ← NSStatusItem + NSMenu
 ├── LaunchAtLoginService ← SMAppService wrapper
+├── OptionKeyMonitor     ← Always-on .flagsChanged monitor; records Option-release timestamp for race detection
 └── OverlayController    ← @Observable, owns overlay lifecycle
     ├── WindowListService    ← AX enumeration (standard + brute-force cross-Space) + CG-only fallback
-    ├── EventMonitorService  ← NSEvent global/local monitors (key, flags, mouse)
+    ├── EventMonitorService  ← NSEvent global/local monitors (key, flags, mouse); scoped to overlay lifetime
+    ├── OptionKeyMonitor     ← injected from AppDelegate; queried post-fetch for release-during-load race
     ├── WindowRaiser         ← SLPS + make-key-event + kAXRaiseAction (AltTab pattern, off-main queue)
     ├── OverlayPanel         ← NSPanel subclass (.nonactivatingPanel, .floating) with canBecomeKeyOverride
     └── SwitcherListView     ← SwiftUI root view, Liquid Glass container
         └── WindowRowView    ← Per-row layout (icon, title, minimized badge)
 ```
 
-All services are `@Observable @MainActor final class`. Dependency injection via `@Environment` — no singletons.
+All services are `@Observable @MainActor final class`. Dependency injection via init parameter / `@Environment` — no singletons.
 
 Cross-Space window discovery and raising use SkyLight private SPI declared in `AXPrivate.swift` (`_AXUIElementCreateWithRemoteToken`, `_SLPSSetFrontProcessWithOptions`, `SLPSPostEventRecordTo`, `CGSCopySpacesForWindows`, `CGSGetWindowLevel`). Touch `CGS_CONNECTION = CGSMainConnectionID()` once at app launch — without it, SLPS calls silently no-op.
 
@@ -61,6 +63,20 @@ Full routing rationale: `docs/260418-01-event-routing-v1.md`.
 3. `OverlayController.show(for:)` fetches windows, presents panel, starts event monitor; if already visible, calls `cycleForward()` instead
 4. `Option` key release → `confirm()` → raise selected window, dismiss panel
 5. `Escape` / click outside → `cancel()` → dismiss without raising
+
+### Rapid-press race (Option released during fetch)
+
+`EventMonitorService` is installed only after `windowListService.windows(...)` returns — a fetch that can take tens of ms for cross-Space apps. If the user releases Option during that window, the `flagsChanged` event is lost and the overlay gets stuck.
+
+**Fix**: `OptionKeyMonitor` runs a `.flagsChanged` global monitor from app launch (never stopped). `show(for:)` snapshots `showStartedAt = Date()` before the fetch and calls `optionKeyMonitor.consumeReleaseAfter(showStartedAt)` after `presentPanel()`. If a release was observed and Option is not currently down (`CGEventSource.flagsState`, hardware-level), it auto-confirms the default selection.
+
+`OverlayController` uses an explicit state machine (`idle → loading → visible → confirming → idle`) instead of `isVisible: Bool` to prevent double-confirm races when `confirm()` is awaiting `windowRaiser.raise`.
+
+Edge cases handled:
+- **Re-press during load**: `consumeReleaseAfter` returns true but `isOptionCurrentlyDown()` returns true → auto-confirm skipped, overlay stays.
+- **Single-window app**: auto-confirm would raise the frontmost window onto itself (no-op + flicker) → dismiss silently instead.
+- **Option+Shift+Tab during load**: `cycleBackwardIfVisible()` sets `pendingDirection = .backward`; `show(for:)` uses it for `initialIndex = count - 1`.
+- **Frontmost app changed during fetch**: `show(for:)` checks `processIdentifier` after `await` and aborts if it changed.
 
 ### Window enumeration
 - `AXUIElementCreateApplication(pid)` → `kAXWindowsAttribute` covers the active Space only on macOS 14+
